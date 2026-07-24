@@ -2,48 +2,51 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Database\Factories\UserFactory;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class User extends Authenticatable
+class User extends Model
 {
-    /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    protected $primaryKey = 'user_id';
+    public $timestamps = false;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
     protected $fillable = [
-        'name',
+        'nama',
         'email',
         'password',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
     protected $hidden = [
         'password',
-        'remember_token',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
-    protected function casts(): array
+    // Project yang dimiliki user ini sebagai owner
+    public function ownedProjects(): HasMany
     {
-        return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
-        ];
+        return $this->hasMany(Project::class, 'owner_id', 'user_id');
+    }
+
+    // Semua project_member record milik user ini
+    public function projectMemberships(): HasMany
+    {
+        return $this->hasMany(ProjectMember::class, 'user_id', 'user_id');
+    }
+
+    // Task yang di-assign ke user ini
+    public function assignedTasks(): HasMany
+    {
+        return $this->hasMany(Task::class, 'assigne_id', 'user_id');
+    }
+
+    // Task yang dibuat oleh user ini
+    public function createdTasks(): HasMany
+    {
+        return $this->hasMany(Task::class, 'created_by', 'user_id');
+    }
+
+    // Comment yang ditulis user ini
+    public function comments(): HasMany
+    {
+        return $this->hasMany(Comment::class, 'user_id', 'user_id');
     }
 }
