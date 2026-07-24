@@ -14,4 +14,5 @@ Route::middleware('auth:sanctum')->group(function () {
 
 Route::middleware('auth:sanctum')->prefix('projects')->group(function () {
     Route::post('/', [ProjectController::class, 'store']);
+    Route::post('/join-by-code', [ProjectController::class, 'joinByCode']);
 });
