@@ -12,6 +12,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']); 
 });
 
-Route::middleware('auth')->prefix('projects')->group(function () {
+Route::middleware('auth:sanctum')->prefix('projects')->group(function () {
     Route::post('/', [ProjectController::class, 'store']);
 });
