@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreProjectRequest;
 use App\Http\Requests\JoinProjectByCodeRequest;
+use App\Http\Requests\UpdateTeamLeaderConfigRequest;
 use App\Models\Project;
 use App\Models\ProjectMember;
 use Illuminate\Http\Response;
@@ -25,7 +26,7 @@ class ProjectController extends Controller
                 'kode_proyek'       => $this->generateUniqueProjectCode(),
                 'status'            => 'Active',
                 'approval_mode'     => 'default',
-                'has_team_leader'   => false,
+                'has_team_leader'   => $validated['has_team_leader'] ?? false,
                 'owner_id'          => auth()->id(),
             ]);
 
@@ -108,6 +109,53 @@ class ProjectController extends Controller
             'message' => $result['message'],
             'data'    => $result['data'],
         ], $result['code']);
+    }
+
+    public function updateTeamLeader(UpdateTeamLeaderConfigRequest $request, Project $project)
+    {
+        $validated = $request->validated();
+
+        // Hanya user dgn role 'owner' yg bisa ubah konfigurasi
+        if ((int) $project->owner_id !== (int) auth()->id()){
+            return response()->json([
+                'message' => 'Hanya owner proyek yang dapat mengubah struktur tim.',
+            ], 403);
+        }
+
+        $newValue = (bool) $validated['has_team_leader'];
+        $oldValue = (bool) $project->has_team_leader;
+
+        if ($newValue == $oldValue) {
+            $statusText = $newValue ? 'aktif' : 'non-aktif';
+
+            return response()->json([
+                'message'      => "Peran Team Leader sudah {$statusText} pada proyek ini.",
+                'data'         => $project->load('owner'),
+            ], 200);
+        }
+
+        DB::transaction(function () use ($project, $newValue) {
+            // Jika has_team_leader di non-aktifkan, demote semua team_leader menjadi member
+            if ($newValue === false) {
+                ProjectMember::where('project_id', $project->project_id)
+                    ->where('role', 'team_leader')
+                    ->update(['role' => 'member']);
+            }
+
+            $project->has_team_leader = $newValue;
+            $project->save();
+
+        });
+
+        $msg = $newValue
+            ? 'Peran Team Leader berhasil diaktifkan.'
+            : 'Peran Team Leader berhasil dinonaktifkan. Semua anggota dengan role Team Leader telah diubah menjadi Member.';
+
+        return response()->json([
+            'message' => $msg,
+            'data'    => $project->load('owner'),
+        ], 200);
+        
     }
 
     private function generateUniqueProjectCode(): string

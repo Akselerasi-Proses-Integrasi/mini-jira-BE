@@ -18,6 +18,7 @@ class StoreProjectRequest extends FormRequest
             'deskripsi'    => ['nullable', 'string'],
             'tgl_mulai'    => ['required', 'date'],
             'tgl_selesai'  => ['required', 'date', 'after:tgl_mulai'],
+            'has_team_leader' => ['nullable', 'boolean'],
         ];
     }
 
@@ -29,6 +30,7 @@ class StoreProjectRequest extends FormRequest
             'tgl_mulai.required'   => 'Tanggal mulai harus diisi.',
             'tgl_selesai.required' => 'Tanggal selesai harus diisi.',
             'tgl_selesai.after'    => 'Tanggal selesai harus setelah tanggal mulai.',
+            'has_team_leader.boolean' => 'Nilai konfigurasi tim harus berupa true atau false.'
         ];
     }
 }
