@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\ExternalLinkController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -18,4 +19,11 @@ Route::middleware('auth:sanctum')->prefix('projects')->group(function () {
     Route::post('/join-by-code', [ProjectController::class, 'joinByCode']);
     Route::patch('/{project}/team-leader', [ProjectController::class, 'updateTeamLeader'])
         ->whereNumber('project');
+});
+
+Route::middleware('auth:sanctum')->prefix('projects/{project}/external-links')->group(function () {
+    Route::get('/', [ExternalLinkController::class, 'index']);
+    Route::post('/', [ExternalLinkController::class, 'store']);
+    Route::put('/{link}', [ExternalLinkController::class, 'update']);
+    Route::delete('/{link}', [ExternalLinkController::class, 'destroy']);
 });

@@ -44,7 +44,7 @@ class ProjectController extends Controller
 
         return response()->json([
             'message' => 'Proyek berhasil dibuat.',
-            'data'    => $project->load('owner'),
+            'data'    => $project->load('owner', 'externalLinks'),
         ], 201);
     }
 
@@ -91,7 +91,7 @@ class ProjectController extends Controller
             return [
                 'success' => true,
                 'message' => 'Berhasil bergabung ke project.',
-                'data'    => $project->load('owner'),
+                'data'    => $project->load('owner', 'externalLinks'),
                 'code'    => Response::HTTP_OK,
             ];
 
@@ -130,7 +130,7 @@ class ProjectController extends Controller
 
             return response()->json([
                 'message'      => "Peran Team Leader sudah {$statusText} pada proyek ini.",
-                'data'         => $project->load('owner'),
+                'data'         => $project->load('owner', 'externalLinks'),
             ], 200);
         }
 
@@ -153,7 +153,7 @@ class ProjectController extends Controller
 
         return response()->json([
             'message' => $msg,
-            'data'    => $project->load('owner'),
+            'data'    => $project->load('owner', 'externalLinks'),
         ], 200);
         
     }
