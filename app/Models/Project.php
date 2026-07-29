@@ -36,6 +36,12 @@ class Project extends Model
         return $this->belongsTo(User::class, 'owner_id', 'user_id');
     }
 
+    public function teamLeaders(): HasMany
+    {
+    return $this->hasMany(ProjectMember::class, 'project_id', 'project_id')
+        ->where('role', 'team_leader');
+    }
+
     public function members(): HasMany
     {
         return $this->hasMany(ProjectMember::class, 'project_id', 'project_id');
