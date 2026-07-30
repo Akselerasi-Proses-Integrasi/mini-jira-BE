@@ -118,13 +118,6 @@ class ProjectController extends Controller
     {
         $validated = $request->validated();
 
-        // Hanya user dgn role 'owner' yg bisa ubah konfigurasi
-        if ((int) $project->owner_id !== (int) auth()->id()){
-            return response()->json([
-                'message' => 'Hanya owner proyek yang dapat mengubah struktur tim.',
-            ], 403);
-        }
-
         $newValue = (bool) $validated['has_team_leader'];
         $oldValue = (bool) $project->has_team_leader;
 
@@ -165,13 +158,6 @@ class ProjectController extends Controller
     public function assignTeamLeader(AssignTeamLeaderRequest $request, Project $project)
     {
         $validated = $request->validated();
-
-        // Hanya 'owner' yg bisa assign role 'team leader'
-        if ((int) $project->owner_id !== (int) auth()->id()) {
-            return response()->json([
-                'message'   => 'Hanya owner proyek yang dapat menetapkan team leader.',
-            ], Response::HTTP_FORBIDDEN);
-        }
 
         // Fitur has_team_leader harus aktif pada proyek
         if (!$project->has_team_leader) {
@@ -228,12 +214,6 @@ class ProjectController extends Controller
 
     public function revokeTeamLeader(RevokeTeamLeaderRequest $request, Project $project, User $user)
     {
-        // Hanya 'Owner' yang bisa revoke
-        if ((int) $project->owner_id !== (int) auth()->id()) {
-            return response()->json([
-                'message'   => 'Hanya owner proyek yang dapat mencabut team leader.'
-            ], Response::HTTP_FORBIDDEN);
-        }
 
         // Fitur has_team_leader harus aktif pada proyek
         if (!$project->has_team_leader) {

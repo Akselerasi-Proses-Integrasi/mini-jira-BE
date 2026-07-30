@@ -13,7 +13,8 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
-            'project.role' => \App\Http\Middleware\CheckProjectRole::class,
+            'project.role'   => \App\Http\Middleware\CheckProjectRole::class,
+            'project.member' => \App\Http\Middleware\CheckProjectMember::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

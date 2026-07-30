@@ -16,15 +16,21 @@ class CheckProjectRole
      */
     public function handle(Request $request, Closure $next, string ...$roles): Response
     {
-        $projectId = $request->route('project');
+        $project = $request->route('project');
 
-        if (!$projectId) {
+        if (!$project) {
             return response()->json(['message' => 'Project tidak ditemukan.'], 404);
         }
 
-        $membership = ProjectMember::where('project_id', $projectId)
-            ->where('user_id', auth()->id())
-            ->first();
+        $projectId = $project->project_id;
+
+        // Cache status membership 
+        $membershipKey = "project.role.membership.{$projectId}." . auth()->id();
+        $membership = cache()->remember($membershipKey, 60, function () use ($projectId) {
+            return ProjectMember::where('project_id', $projectId)
+                ->where('user_id', auth()->id())
+                ->first();
+        });
 
         if (!$membership || !in_array($membership->role, $roles)) {
             return response()->json([

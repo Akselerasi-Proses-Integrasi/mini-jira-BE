@@ -5,30 +5,47 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ExternalLinkController;
 use Illuminate\Support\Facades\Route;
 
-
+// Public-
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/login/google', [AuthController::class, 'googleLogin']);
 
-Route::middleware('auth:sanctum')->group(function () {
-    Route::post('/logout', [AuthController::class, 'logout']); 
-});
+Route::middleware('auth:sanctum')->post('/logout', [AuthController::class, 'logout']);
 
-Route::middleware('auth:sanctum')->prefix('projects')->group(function () {
-    Route::post('/', [ProjectController::class, 'store']);
-    Route::post('/join-by-code', [ProjectController::class, 'joinByCode']);
-    Route::patch('/{project}/team-leader', [ProjectController::class, 'updateTeamLeader'])
-        ->whereNumber('project');
-    Route::post('/{project}/team-leaders', [ProjectController::class, 'assignTeamLeader'])
-        ->whereNumber('project');
-    Route::delete('/{project}/team-leaders/{user}', [ProjectController::class, 'revokeTeamLeader'])
-        ->whereNumber('project')
-        ->whereNumber('user');
-});
+// Project: Create & Join (tidak butuh context project.id)
+Route::middleware('auth:sanctum')
+    ->prefix('projects')
+    ->group(function () {
+        Route::post('/', [ProjectController::class, 'store']);
+        Route::post('/join-by-code', [ProjectController::class, 'joinByCode']);
+    });
 
-Route::middleware('auth:sanctum')->prefix('projects/{project}/external-links')->group(function () {
-    Route::get('/', [ExternalLinkController::class, 'index']);
-    Route::post('/', [ExternalLinkController::class, 'store']);
-    Route::put('/{link}', [ExternalLinkController::class, 'update']);
-    Route::delete('/{link}', [ExternalLinkController::class, 'destroy']);
-});
+// Project-member scoped  
+Route::middleware(['auth:sanctum', 'project.member'])
+    ->prefix('projects/{project}')
+    ->group(function () {
+        Route::get('/external-links', [ExternalLinkController::class, 'index']);
+    });
+
+// Owner-only: Team Leader config
+Route::middleware(['auth:sanctum', 'project.role:owner'])
+    ->prefix('projects/{project}/team-leader')
+    ->group(function () {
+        Route::patch('/', [ProjectController::class, 'updateTeamLeader']);
+    });
+
+Route::middleware(['auth:sanctum', 'project.role:owner'])
+    ->prefix('projects/{project}/team-leaders')
+    ->group(function () {
+        Route::post('/', [ProjectController::class, 'assignTeamLeader']);
+        Route::delete('/{user}', [ProjectController::class, 'revokeTeamLeader']);
+    });
+
+// Owner / Team Leader: Mutasi External Link
+Route::middleware(['auth:sanctum', 'project.role:owner,team_leader'])
+    ->prefix('projects/{project}/external-links')
+    ->group(function () {
+        Route::post('/', [ExternalLinkController::class, 'store']);
+        Route::put('/{link}', [ExternalLinkController::class, 'update']);
+        Route::delete('/{link}', [ExternalLinkController::class, 'destroy']);
+    });
