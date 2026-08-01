@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreProjectRequest;
 use App\Http\Requests\JoinProjectByCodeRequest;
 use App\Http\Requests\UpdateTeamLeaderConfigRequest;
+use App\Http\Requests\UpdateApprovalModeRequest;
 use App\Http\Requests\AssignTeamLeaderRequest;
 use App\Http\Requests\RevokeTeamLeaderRequest;
 use App\Models\Project;
@@ -153,6 +154,31 @@ class ProjectController extends Controller
         ], 200);
         
     }
+
+    public function updateApprovalMode(UpdateApprovalModeRequest $request, Project $project)
+{
+    $validated = $request->validated();
+
+    $newValue = $validated['approval_mode'];
+    $oldValue = $project->approval_mode;
+
+    if ($newValue === $oldValue) {
+        return response()->json([
+            'message' => "Mode approval sudah '{$newValue}' pada proyek ini.",
+            'data'    => $project->load('owner', 'externalLinks'),
+        ], Response::HTTP_OK);
+    }
+
+    DB::transaction(function () use ($project, $newValue) {
+        $project->approval_mode = $newValue;
+        $project->save();
+    });
+
+    return response()->json([
+        'message' => "Mode approval berhasil diubah menjadi '{$newValue}'.",
+        'data'    => $project->load('owner', 'externalLinks'),
+    ], Response::HTTP_OK);
+}
 
     // Assign team leader pada member tertentu
     public function assignTeamLeader(AssignTeamLeaderRequest $request, Project $project)

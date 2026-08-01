@@ -29,11 +29,18 @@ Route::middleware(['auth:sanctum', 'project.member'])
         Route::get('/external-links', [ExternalLinkController::class, 'index']);
     });
 
-// Owner-only: Team Leader config
+// Owner-only: Team Leader config & Approval Mode config
 Route::middleware(['auth:sanctum', 'project.role:owner'])
     ->prefix('projects/{project}/team-leader')
     ->group(function () {
         Route::patch('/', [ProjectController::class, 'updateTeamLeader']);
+    });
+
+// Owner-only: Approval Mode config
+Route::middleware(['auth:sanctum', 'project.role:owner'])
+    ->prefix('projects/{project}/approval-mode')
+    ->group(function () {
+        Route::patch('/', [ProjectController::class, 'updateApprovalMode']);
     });
 
 Route::middleware(['auth:sanctum', 'project.role:owner'])
