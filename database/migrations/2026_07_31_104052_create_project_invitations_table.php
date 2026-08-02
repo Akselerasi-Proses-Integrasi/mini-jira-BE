@@ -24,9 +24,9 @@ return new class extends Migration
             $table->string('token', 100)->unique();
             $table->enum('status', ['pending', 'accepted', 'expired', 'cancelled'])
                   ->default('pending');
-            $table->timestamps('expires_at');
-            $table->timestamps('created_at')->useCurrent();
-            $table->timestamps('accepted_at')->nullable();
+            $table->timestamp('expires_at');
+            $table->timestamp('created_at')->useCurrent();
+            $table->timestamp('accepted_at')->nullable();
 
             // Satu email per project hanya boleh punya 1 undangan aktif (pending)
             $table->unique(['project_id', 'email', 'status']);

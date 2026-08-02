@@ -28,12 +28,12 @@ class ProjectInvitation extends Model
         'accepted_at'   => 'datetime',
     ];
 
-    public function project(): BelongsTo
+    public function project()
     {
         return $this->belongsTo(Project::class, 'project_id', 'project_id');
     }
 
-    public function inviter(): BelongsTo
+    public function inviter()
     {
         return $this->belongsTo(User::class, 'invited_by', 'user_id');
     }

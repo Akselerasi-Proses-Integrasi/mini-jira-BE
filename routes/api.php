@@ -49,3 +49,20 @@ Route::middleware(['auth:sanctum', 'project.role:owner,team_leader'])
         Route::put('/{link}', [ExternalLinkController::class, 'update']);
         Route::delete('/{link}', [ExternalLinkController::class, 'destroy']);
     });
+
+// Owner / Team Leader : Invitasi
+Route::middleware(['auth:sanctum', 'project.role:owner,team_leader'])
+    ->prefix('projects/{project}/invitations')
+    ->group(function () {
+        Route::post('/', [ProjectController::class, 'sendInvitation']);
+        Route::get('/', [ProjectController::class, 'listInvitations']);
+        Route::delete('/{invitation}', [ProjectController::class, 'cancelInvitation']);
+    });
+
+// Accept invitation
+Route::prefix('invitations')
+    ->middleware('auth:sanctum')
+    ->group(function () {
+        Route::post('/accept/{token}', [ProjectController::class, 'acceptInvitation'])
+            ->name('invitations.accept');
+    });

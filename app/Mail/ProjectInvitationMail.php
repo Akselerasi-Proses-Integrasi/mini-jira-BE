@@ -15,6 +15,7 @@ class ProjectInvitationMail extends Mailable implements ShouldQueue
 
     public $projectName;
     public $inviterName;
+    public $invitationUrl;
     public $role;
     public $isExistingUser;
 
@@ -37,7 +38,7 @@ class ProjectInvitationMail extends Mailable implements ShouldQueue
     {
         $subject = $this->isExistingUser
             ? "Kamu telah ditambahkan ke proyek: {$this->projectName}"
-            : 'Undangan bergabung ke proyek: {$this->projectName}';
+            : "Undangan bergabung ke proyek: {$this->projectName}";
 
         return new Envelope(
             subject: $subject,
