@@ -24,7 +24,7 @@ return new class extends Migration
             $table->string('token', 100)->unique();
             $table->enum('status', ['pending', 'accepted', 'expired', 'cancelled'])
                   ->default('pending');
-            $table->timestamp('expires_at');
+            $table->timestamp('expires_at')->nullable();
             $table->timestamp('created_at')->useCurrent();
             $table->timestamp('accepted_at')->nullable();
 
