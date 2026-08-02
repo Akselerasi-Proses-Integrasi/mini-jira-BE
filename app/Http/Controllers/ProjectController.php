@@ -7,12 +7,18 @@ use App\Http\Requests\JoinProjectByCodeRequest;
 use App\Http\Requests\UpdateTeamLeaderConfigRequest;
 use App\Http\Requests\AssignTeamLeaderRequest;
 use App\Http\Requests\RevokeTeamLeaderRequest;
+use App\Http\Requests\SendProjectInvitationRequest;
+use App\Http\Requests\AcceptProjectInvitationRequest;
+use App\Mail\ProjectInvitationMail;
+use App\Models\ProjectInvitation;
 use App\Models\Project;
 use App\Models\ProjectMember;
 use App\Models\User;
 use Illuminate\Http\Response;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 
 class ProjectController extends Controller
 {
@@ -253,7 +259,203 @@ class ProjectController extends Controller
 
     }
 
+    // Kirim undangan via email ke proyek.
+    // Hanya owner atau team leader yang bisa mengirim undangan.
+    // Jika email terdaftar, langsung jadi member + kirim notifikasi.
+    // Jika email belum terdaftar, buat record ProjectInvitation + kirim link undangan.
+    public function sendInvitation(SendProjectInvitationRequest $request, Project $project)
+    {
+        $email = strtolower(trim($request->email));
+        $requestedRole = $request->role ?? 'member';
 
+        // Jika user sudah menjadi member → tolak (idempoten)
+        $existingMember = ProjectMember::where('project_id', $project->project_id)
+            ->whereHas('user', fn($q) => $q->where('email', $email))
+            ->first();
+
+        if ($existingMember) {
+            return response()->json([
+                'message' => 'Pengguna dengan email tersebut sudah menjadi anggota project ini.',
+            ], Response::HTTP_CONFLICT);
+        }
+
+        // Cek apakah ada undangan pending yang sama (idempoten)
+        $pendingInvitation = ProjectInvitation::where('project_id', $project->project_id)
+            ->where('email', $email)
+            ->where('status', 'pending')
+            ->where('expires_at', '>', now())
+            ->first();
+
+        if ($pendingInvitation) {
+            // Kirim ulang email yang sama untuk UX (atau bisa return 200 dengan pesan)
+            Mail::to($email)->later(
+                now()->addSeconds(5),
+                new ProjectInvitationMail(
+                    projectName: $project->nama_proyek,
+                    inviterName: auth()->user()->nama,
+                    invitationUrl: URL::temporarySignedRoute(
+                        'invitations.accept',
+                        now()->addDays(7),
+                        ['token' => $pendingInvitation->token]
+                    ),
+                    role: $pendingInvitation->role,
+                    isExistingUser: false
+                )
+            );
+
+            return response()->json([
+                'message' => 'Undangan masih berlaku. Email undangan telah dikirim ulang.',
+            ], Response::HTTP_OK);
+        }
+
+        // Cek apakah user dengan email tersebut sudah terdaftar
+        $user = User::where('email', $email)->first();
+
+        DB::transaction(function () use ($project, $user, $email, $requestedRole, $existingMember) {
+            if ($user && !$existingMember) {
+                // User EXISTS: langsung menjadi member
+                ProjectMember::create([
+                    'project_id' => $project->project_id,
+                    'user_id'    => $user->user_id,
+                    'role'       => $requestedRole === 'team_leader' ? 'team_leader' : 'member',
+                    'joined_via' => 'invite',
+                    'joined_at'  => now(),
+                ]);
+            } else {
+                // User BELUM ADA: buat record invitation
+                $token = Str::random(64);
+
+                ProjectInvitation::create([
+                    'project_id'  => $project->project_id,
+                    'invited_by'  => auth()->id(),
+                    'email'       => $email,
+                    'role'        => $requestedRole === 'team_leader' ? 'team_leader' : 'member',
+                    'token'       => $token,
+                    'status'      => 'pending',
+                    'expires_at'  => now()->addDays(7),
+                    'created_at'  => now(),
+                ]);
+            }
+        });
+
+        // Kirim email (di luar transaksi agar tidak memblokir)
+        if ($user) {
+            Mail::to($email)->later(
+                now()->addSeconds(2),
+                new ProjectInvitationMail(
+                    projectName: $project->nama_proyek,
+                    inviterName: auth()->user()->nama,
+                    invitationUrl: url('/projects/' . $project->kode_proyek),
+                    role: $requestedRole === 'team_leader' ? 'team_leader' : 'member',
+                    isExistingUser: true
+                )
+            );
+        } else {
+            $invitation = ProjectInvitation::where('project_id', $project->project_id)
+                ->where('email', $email)
+                ->where('status', 'pending')
+                ->latest('created_at')
+                ->first();
+
+            Mail::to($email)->later(
+                now()->addSeconds(2),
+                new ProjectInvitationMail(
+                    projectName: $project->nama_proyek,
+                    inviterName: auth()->user()->nama,
+                    invitationUrl: URL::temporarySignedRoute(
+                        'invitations.accept',
+                        now()->addDays(7),
+                        ['token' => $invitation->token]
+                    ),
+                    role: $requestedRole,
+                    isExistingUser: false
+                )
+            );
+        }
+
+        return response()->json([
+            'message' => $user
+                ? 'Undangan telah dikirim. Pengguna telah menjadi anggota project.'
+                : 'Undangan telah dikirim ke email.',
+        ], Response::HTTP_CREATED);
+    }
+
+    // User menerima undangan dengan token.
+    public function acceptInvitation(AcceptProjectInvitationRequest $request)
+    {
+        $invitation = $request->invitation;
+        $user = auth()->user();
+
+        // Pastikan user dengan email yang diundang cocok
+        if (strtolower($invitation->email) !== strtolower($user->email)) {
+            return response()->json([
+                'message' => 'Email kamu tidak cocok dengan undangan.',
+            ], Response::HTTP_FORBIDDEN);
+        }
+
+        // Cek apakah sudah jadi member
+        $alreadyMember = ProjectMember::where('project_id', $invitation->project_id)
+            ->where('user_id', $user->user_id)
+            ->first();
+
+        if ($alreadyMember) {
+            $invitation->update([
+                'status' => 'accepted',
+                'accepted_at' => now(),
+            ]);
+
+            return response()->json([
+                'message' => 'Kamu sudah menjadi anggota project ini.',
+                'data'    => $invitation->project->load('owner', 'members'),
+            ], Response::HTTP_OK);
+        }
+
+        DB::transaction(function () use ($invitation, $user) {
+            ProjectMember::create([
+                'project_id' => $invitation->project_id,
+                'user_id'    => $user->user_id,
+                'role'       => $invitation->role,
+                'joined_via' => 'invite',
+                'joined_at'  => now(),
+            ]);
+
+            $invitation->update([
+                'status' => 'accepted',
+                'accepted_at' => now(),
+            ]);
+        });
+
+        return response()->json([
+            'message' => 'Berhasil bergabung ke project.',
+            'data'    => $invitation->project->load('owner', 'members'),
+        ], Response::HTTP_OK);
+    }
+
+    public function listInvitations(Project $project)
+    {
+        $invitations = ProjectInvitation::where('project_id', $project->project_id)
+            ->orderByDesc('created_at')
+            ->get();
+
+        return response()->json([
+            'message' => 'Daftar undangan.',
+            'data'    => $invitations,
+        ], Response::HTTP_OK);
+    }
+
+    public function cancelInvitation(Project $project, $invitationId)
+    {
+        $invitation = ProjectInvitation::where('project_id', $project->project_id)
+            ->where('invitation_id', $invitationId)
+            ->where('status', 'pending')
+            ->firstOrFail();
+
+        $invitation->update(['status' => 'cancelled']);
+
+        return response()->json([
+            'message' => 'Undangan berhasil dibatalkan.',
+        ], Response::HTTP_OK);
+    }
 
     private function generateUniqueProjectCode(): string
     {
