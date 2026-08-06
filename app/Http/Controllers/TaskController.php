@@ -25,8 +25,18 @@ class TaskController extends Controller
         $membership = ProjectMember::where('project_id', $project->project_id)
             ->where('user_id', auth()->id())
             ->first();
-            
+
         return $membership ? $membership->role : null;
+    }
+
+    private function getTaskCreatorId(Task $task): ?int
+    {
+        return $task->created_by;
+    }
+
+    private function getTaskAssigneeId(Task $task): ?int
+    {
+        return $task->assigne_id;
     }
 
     public function index(Project $project, Sprint $sprint)
@@ -110,6 +120,7 @@ class TaskController extends Controller
         $newStatus = $validated['status'];
         $oldStatus = $task->status;
         $userRole  = $this->getCurrentUserRole($project);
+        $currentUserId = auth()->id();
 
         if ($newStatus === $oldStatus) {
             return response()->json(['message' => 'Status tidak ada perubahan.', 'data' => $task], 200);
@@ -118,6 +129,21 @@ class TaskController extends Controller
         if ($oldStatus === 'done') {
             if (!in_array($userRole, ['owner', 'team_leader'])) {
                 return response()->json(['message' => 'Akses ditolak. Hanya Owner dan Team Leader yang dapat melakukan reopen pada task berstatus Done.'], 403);
+            }
+        }
+
+        if ($oldStatus === 'waiting approval' && $newStatus === 'in progress') {
+            if (strtolower($project->approval_mode) === 'restricted') {
+                if (!in_array($userRole, ['owner', 'team_leader'])) {
+                    return response()->json(['message' => 'Mode proyek ini Restricted. Hanya Owner atau Team Leader yang bisa melakukan reject task yang menunggu approval.'], 403);
+                }
+            } else {
+                $isAssignee = $this->getTaskAssigneeId($task) === $currentUserId;
+                $isCreator  = $this->getTaskCreatorId($task) === $currentUserId;
+
+                if (!in_array($userRole, ['owner', 'team_leader']) && !$isAssignee && !$isCreator) {
+                    return response()->json(['message' => 'Akses ditolak. Hanya Assignee, Pembuat task, Team Leader, atau Owner yang dapat melakukan reject task.'], 403);
+                }
             }
         }
 
@@ -133,8 +159,8 @@ class TaskController extends Controller
             'to do'            => ['in progress', 'blocked'],
             'in progress'      => ['to do', 'blocked', 'waiting approval'],
             'blocked'          => ['to do', 'in progress'],
-            'waiting approval' => ['done', 'in progress'], // FR-STM-06: in progress = reject
-            'done'             => ['to do', 'in progress'], // FR-STM-07: reopen
+            'waiting approval' => ['done', 'in progress'],
+            'done'             => ['to do', 'in progress'],
         ];
 
         if (!in_array($newStatus, $allowedTransitions[$oldStatus])) {
