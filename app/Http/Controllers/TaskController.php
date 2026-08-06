@@ -42,7 +42,7 @@ class TaskController extends Controller
     public function index(Project $project, Sprint $sprint)
     {
         if ($sprint->project_id !== $project->project_id) {
-            return response()->json(['message' => 'Sprint tidak ditemukan pada proyek ini.'], 404);
+            return response()->json(['message' => 'Sprint tidak ditemukan pada proyek ini.'], Response::HTTP_NOT_FOUND);
         }
 
         $tasks = $sprint->tasks()->with(['assignee', 'creator'])->get();
@@ -50,7 +50,7 @@ class TaskController extends Controller
         return response()->json([
             'message' => 'Berhasil mengambil daftar task.',
             'data'    => $tasks
-        ], 200);
+        ], Response::HTTP_OK);
     }
 
     public function store(Request $request, Project $project, Sprint $sprint)
@@ -58,20 +58,20 @@ class TaskController extends Controller
         $this->ensureProjectIsActive($project);
 
         if ($sprint->project_id !== $project->project_id) {
-            return response()->json(['message' => 'Sprint tidak valid untuk proyek ini.'], 400);
+            return response()->json(['message' => 'Sprint tidak valid untuk proyek ini.'], Response::HTTP_BAD_REQUEST);
         }
 
         $validated = $request->validate([
             'judul'      => 'required|string|max:200',
             'deskripsi'  => 'nullable|string',
-            'assigne_id' => 'nullable|exists:users,user_id', // Opsional
+            'assigne_id' => 'nullable|exists:users,user_id',
         ]);
 
         if (!empty($validated['assigne_id'])) {
             $isMember = ProjectMember::where('project_id', $project->project_id)
                 ->where('user_id', $validated['assigne_id'])->exists();
             if (!$isMember) {
-                return response()->json(['message' => 'Assignee harus merupakan anggota proyek ini.'], 400);
+                return response()->json(['message' => 'Assignee harus merupakan anggota proyek ini.'], Response::HTTP_BAD_REQUEST);
             }
         }
 
@@ -80,19 +80,22 @@ class TaskController extends Controller
             'deskripsi'  => $validated['deskripsi'] ?? null,
             'assigne_id' => $validated['assigne_id'] ?? null,
             'created_by' => auth()->id(),
-            'status'     => 'to do', // Default status awal
+            'status'     => 'to do',
         ]);
 
         return response()->json([
             'message' => 'Task berhasil dibuat.',
             'data'    => $task
-        ], 201);
+        ], Response::HTTP_CREATED);
     }
 
     public function update(Request $request, Project $project, Sprint $sprint, Task $task)
     {
         $this->ensureProjectIsActive($project);
-        if ($task->sprint_id !== $sprint->sprint_id) return response()->json(['message' => 'Task tidak valid.'], 400);
+        
+        if ($task->sprint_id !== $sprint->sprint_id) {
+            return response()->json(['message' => 'Task tidak valid.'], Response::HTTP_BAD_REQUEST);
+        }
 
         $validated = $request->validate([
             'judul'      => 'sometimes|required|string|max:200',
@@ -105,13 +108,13 @@ class TaskController extends Controller
         return response()->json([
             'message' => 'Task berhasil diperbarui.',
             'data'    => $task
-        ], 200);
+        ], Response::HTTP_OK);
     }
 
     public function updateStatus(Request $request, Project $project, Sprint $sprint, Task $task)
     {
         $this->ensureProjectIsActive($project);
-        if ($task->sprint_id !== $sprint->sprint_id) return response()->json(['message' => 'Task tidak valid.'], 400);
+        if ($task->sprint_id !== $sprint->sprint_id) return response()->json(['message' => 'Task tidak valid.'], Response::HTTP_BAD_REQUEST);
 
         $validated = $request->validate([
             'status' => 'required|in:to do,in progress,blocked,waiting approval,done'
@@ -123,6 +126,7 @@ class TaskController extends Controller
         $currentUserId = auth()->id();
 
         if ($newStatus === $oldStatus) {
+<<<<<<< HEAD
             return response()->json(['message' => 'Status tidak ada perubahan.', 'data' => $task], 200);
         }
 
@@ -153,6 +157,9 @@ class TaskController extends Controller
                     return response()->json(['message' => 'Mode proyek ini Restricted. Hanya Owner atau Team Leader yang bisa memvalidasi task menjadi Done.'], 403);
                 }
             }
+=======
+            return response()->json(['message' => 'Status tidak ada perubahan.', 'data' => $task], Response::HTTP_OK);
+>>>>>>> 792c4bf49f87173dc546ff5f6a32b9dce302b945
         }
 
         $allowedTransitions = [
@@ -165,30 +172,48 @@ class TaskController extends Controller
 
         if (!in_array($newStatus, $allowedTransitions[$oldStatus])) {
             return response()->json([
-                'message' => "Transisi status tidak valid. Tidak bisa mengubah status dari '$oldStatus' langsung ke '$newStatus'."
-            ], 400);
+                'message' => "Transisi status tidak valid. Tidak bisa mengubah status dari '{$oldStatus}' langsung ke '{$newStatus}'."
+            ], Response::HTTP_BAD_REQUEST);
+        }
+
+        if ($oldStatus === 'waiting approval' && $newStatus === 'done') {
+            if ($project->approval_mode === 'restricted') {
+                if (!in_array($userRole, ['owner', 'team_leader'])) {
+                    return response()->json([
+                        'message' => 'Akses Ditolak: Mode proyek Restricted. Hanya Owner atau Team Leader yang berhak melakukan Approve menjadi Done.'
+                    ], Response::HTTP_FORBIDDEN);
+                }
+            }
+        }
+
+        if ($oldStatus === 'done') {
+            if (!in_array($userRole, ['owner', 'team_leader'])) {
+                return response()->json([
+                    'message' => 'Akses Ditolak: Hanya Owner dan Team Leader yang dapat melakukan reopen pada task yang sudah Done.'
+                ], Response::HTTP_FORBIDDEN);
+            }
         }
 
         $task->update(['status' => $newStatus]);
 
         return response()->json([
-            'message' => 'Status task berhasil diperbarui.',
+            'message' => "Status task berhasil diubah menjadi '{$newStatus}'.",
             'data'    => $task
-        ], 200);
+        ], Response::HTTP_OK);
     }
 
     public function destroy(Project $project, Sprint $sprint, Task $task)
     {
         $this->ensureProjectIsActive($project);
-        if ($task->sprint_id !== $sprint->sprint_id) return response()->json(['message' => 'Task tidak valid.'], 400);
+        if ($task->sprint_id !== $sprint->sprint_id) return response()->json(['message' => 'Task tidak valid.'], Response::HTTP_BAD_REQUEST);
 
         $userRole = $this->getCurrentUserRole($project);
         if (!in_array($userRole, ['owner', 'team_leader']) && $task->created_by !== auth()->id()) {
-             return response()->json(['message' => 'Hanya Owner, Team Leader, atau Pembuat task yang bisa menghapus task ini.'], 403);
+             return response()->json(['message' => 'Hanya Owner, Team Leader, atau Pembuat task yang bisa menghapus task ini.'], Response::HTTP_FORBIDDEN);
         }
 
         $task->delete();
 
-        return response()->json(['message' => 'Task berhasil dihapus.'], 200);
+        return response()->json(['message' => 'Task berhasil dihapus.'], Response::HTTP_OK);
     }
 }
