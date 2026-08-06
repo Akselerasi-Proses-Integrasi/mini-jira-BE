@@ -126,40 +126,7 @@ class TaskController extends Controller
         $currentUserId = auth()->id();
 
         if ($newStatus === $oldStatus) {
-<<<<<<< HEAD
-            return response()->json(['message' => 'Status tidak ada perubahan.', 'data' => $task], 200);
-        }
-
-        if ($oldStatus === 'done') {
-            if (!in_array($userRole, ['owner', 'team_leader'])) {
-                return response()->json(['message' => 'Akses ditolak. Hanya Owner dan Team Leader yang dapat melakukan reopen pada task berstatus Done.'], 403);
-            }
-        }
-
-        if ($oldStatus === 'waiting approval' && $newStatus === 'in progress') {
-            if (strtolower($project->approval_mode) === 'restricted') {
-                if (!in_array($userRole, ['owner', 'team_leader'])) {
-                    return response()->json(['message' => 'Mode proyek ini Restricted. Hanya Owner atau Team Leader yang bisa melakukan reject task yang menunggu approval.'], 403);
-                }
-            } else {
-                $isAssignee = $this->getTaskAssigneeId($task) === $currentUserId;
-                $isCreator  = $this->getTaskCreatorId($task) === $currentUserId;
-
-                if (!in_array($userRole, ['owner', 'team_leader']) && !$isAssignee && !$isCreator) {
-                    return response()->json(['message' => 'Akses ditolak. Hanya Assignee, Pembuat task, Team Leader, atau Owner yang dapat melakukan reject task.'], 403);
-                }
-            }
-        }
-
-        if ($newStatus === 'done' && $oldStatus === 'waiting approval') {
-            if (strtolower($project->approval_mode) === 'restricted') {
-                if (!in_array($userRole, ['owner', 'team_leader'])) {
-                    return response()->json(['message' => 'Mode proyek ini Restricted. Hanya Owner atau Team Leader yang bisa memvalidasi task menjadi Done.'], 403);
-                }
-            }
-=======
             return response()->json(['message' => 'Status tidak ada perubahan.', 'data' => $task], Response::HTTP_OK);
->>>>>>> 792c4bf49f87173dc546ff5f6a32b9dce302b945
         }
 
         $allowedTransitions = [
@@ -181,6 +148,25 @@ class TaskController extends Controller
                 if (!in_array($userRole, ['owner', 'team_leader'])) {
                     return response()->json([
                         'message' => 'Akses Ditolak: Mode proyek Restricted. Hanya Owner atau Team Leader yang berhak melakukan Approve menjadi Done.'
+                    ], Response::HTTP_FORBIDDEN);
+                }
+            }
+        }
+
+        if ($oldStatus === 'waiting approval' && $newStatus === 'in progress') {
+            if ($project->approval_mode === 'restricted') {
+                if (!in_array($userRole, ['owner', 'team_leader'])) {
+                    return response()->json([
+                        'message' => 'Akses Ditolak: Mode proyek Restricted. Hanya Owner atau Team Leader yang berhak melakukan Reject kembali ke In Progress.'
+                    ], Response::HTTP_FORBIDDEN);
+                }
+            } else {
+                $isAssignee = $this->getTaskAssigneeId($task) === $currentUserId;
+                $isCreator  = $this->getTaskCreatorId($task) === $currentUserId;
+
+                if (!in_array($userRole, ['owner', 'team_leader']) && !$isAssignee && !$isCreator) {
+                    return response()->json([
+                        'message' => 'Akses Ditolak: Hanya Assignee, Pembuat Task, Owner, atau Team Leader yang berhak melakukan Reject.'
                     ], Response::HTTP_FORBIDDEN);
                 }
             }
