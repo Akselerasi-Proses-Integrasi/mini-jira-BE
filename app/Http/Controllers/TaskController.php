@@ -134,7 +134,7 @@ class TaskController extends Controller
             'in progress'      => ['to do', 'blocked', 'waiting approval'],
             'blocked'          => ['to do', 'in progress'],
             'waiting approval' => ['done', 'in progress'],
-            'done'             => ['to do', 'in progress'],
+            'done'             => ['to do', 'in progress', 'blocked', 'waiting approval'],
         ];
 
         if (!in_array($newStatus, $allowedTransitions[$oldStatus])) {
@@ -184,6 +184,36 @@ class TaskController extends Controller
 
         return response()->json([
             'message' => "Status task berhasil diubah menjadi '{$newStatus}'.",
+            'data'    => $task
+        ], Response::HTTP_OK);
+    }
+
+    public function reopen(Request $request, Project $project, Sprint $sprint, Task $task)
+    {
+        $this->ensureProjectIsActive($project);
+        if ($task->sprint_id !== $sprint->sprint_id) {
+            return response()->json(['message' => 'Task tidak valid.'], Response::HTTP_BAD_REQUEST);
+        }
+
+        if ($task->status !== 'done') {
+            return response()->json(['message' => 'Hanya task dengan status Done yang dapat di-reopen.'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $userRole = $this->getCurrentUserRole($project);
+        if (!in_array($userRole, ['owner', 'team_leader'])) {
+            return response()->json([
+                'message' => 'Akses Ditolak: Hanya Owner dan Team Leader yang dapat melakukan reopen pada task yang sudah Done.'
+            ], Response::HTTP_FORBIDDEN);
+        }
+
+        $validated = $request->validate([
+            'status' => 'required|in:to do,in progress,blocked,waiting approval'
+        ]);
+
+        $task->update(['status' => $validated['status']]);
+
+        return response()->json([
+            'message' => "Task berhasil di-reopen menjadi '{$validated['status']}'.",
             'data'    => $task
         ], Response::HTTP_OK);
     }

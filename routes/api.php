@@ -105,6 +105,7 @@ Route::middleware(['auth:sanctum', 'project.member'])
         
         // Endpoint Khusus untuk mengubah status
         Route::patch('/{task}/status', [TaskController::class, 'updateStatus']);
+        Route::patch('/{task}/reopen', [TaskController::class, 'reopen']);
     });
 
 // Modul Collaboration Engine (Komentar Task)
