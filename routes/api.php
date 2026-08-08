@@ -5,6 +5,7 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ExternalLinkController;
 use App\Http\Controllers\SprintController;
 use App\Http\Controllers\TaskController;
+use App\Http\Controllers\CommentController;
 use Illuminate\Support\Facades\Route;
 
 // Public-
@@ -104,4 +105,13 @@ Route::middleware(['auth:sanctum', 'project.member'])
         
         // Endpoint Khusus untuk mengubah status
         Route::patch('/{task}/status', [TaskController::class, 'updateStatus']);
+    });
+
+// Modul Collaboration Engine (Komentar Task)
+Route::middleware(['auth:sanctum', 'project.member'])
+    ->prefix('projects/{project}/tasks/{task}/comments')
+    ->group(function () {
+        Route::get('/', [CommentController::class, 'index']);
+        Route::post('/', [CommentController::class, 'store']);
+        Route::delete('/{comment}', [CommentController::class, 'destroy']);
     });
