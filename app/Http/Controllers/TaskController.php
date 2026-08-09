@@ -129,15 +129,9 @@ class TaskController extends Controller
             return response()->json(['message' => 'Status tidak ada perubahan.', 'data' => $task], Response::HTTP_OK);
         }
 
-        $allowedTransitions = [
-            'to do'            => ['in progress', 'blocked'],
-            'in progress'      => ['to do', 'blocked', 'waiting approval'],
-            'blocked'          => ['to do', 'in progress'],
-            'waiting approval' => ['done', 'in progress'],
-            'done'             => ['to do', 'in progress', 'blocked', 'waiting approval'],
-        ];
+        $statusValidator = app(\App\Services\TaskStatusValidator::class);
 
-        if (!in_array($newStatus, $allowedTransitions[$oldStatus])) {
+        if (!$statusValidator->isValidTransition($oldStatus, $newStatus)) {
             return response()->json([
                 'message' => "Transisi status tidak valid. Tidak bisa mengubah status dari '{$oldStatus}' langsung ke '{$newStatus}'."
             ], Response::HTTP_BAD_REQUEST);
