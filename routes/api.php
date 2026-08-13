@@ -51,8 +51,13 @@ Route::middleware(['auth:sanctum', 'project.role:owner'])
         Route::delete('/{user}', [ProjectController::class, 'revokeTeamLeader']);
     });
 
+// Owner-only: Close Project
+Route::middleware(['auth:sanctum', 'project.role:owner'])
+    ->patch('projects/{project}/close', [ProjectController::class, 'closeProject'])
+    ->name('projects.close');
+
 // Owner / Team Leader: Mutasi External Link
-Route::middleware(['auth:sanctum', 'project.role:owner,team_leader'])
+Route::middleware(['auth:sanctum', 'project.role:owner,team_leader', 'project.active'])
     ->prefix('projects/{project}/external-links')
     ->group(function () {
         Route::post('/', [ExternalLinkController::class, 'store']);
@@ -86,7 +91,7 @@ Route::middleware(['auth:sanctum', 'project.member'])
     });
 
 // Mutasi / CRUD Sprint (Hanya bisa diakses oleh Owner dan Team Leader)
-Route::middleware(['auth:sanctum', 'project.role:owner,team_leader'])
+Route::middleware(['auth:sanctum', 'project.role:owner,team_leader', 'project.active'])
     ->prefix('projects/{project}/sprints')
     ->group(function () {
         Route::post('/', [SprintController::class, 'store']);
@@ -94,11 +99,17 @@ Route::middleware(['auth:sanctum', 'project.role:owner,team_leader'])
         Route::delete('/{sprint}', [SprintController::class, 'destroy']);
     });
 
-// Modul Task (Bisa diakses seluruh Member, validasi Role dilakukan di Controller)
+// Modul Task - Read Only
 Route::middleware(['auth:sanctum', 'project.member'])
     ->prefix('projects/{project}/sprints/{sprint}/tasks')
     ->group(function () {
         Route::get('/', [TaskController::class, 'index']);
+    });
+
+// Modul Task - Mutasi
+Route::middleware(['auth:sanctum', 'project.member', 'project.active'])
+    ->prefix('projects/{project}/sprints/{sprint}/tasks')
+    ->group(function () {
         Route::post('/', [TaskController::class, 'store']);
         Route::put('/{task}', [TaskController::class, 'update']);
         Route::delete('/{task}', [TaskController::class, 'destroy']);
@@ -108,11 +119,17 @@ Route::middleware(['auth:sanctum', 'project.member'])
         Route::patch('/{task}/reopen', [TaskController::class, 'reopen']);
     });
 
-// Modul Collaboration Engine (Komentar Task)
+// Modul Collaboration Engine - Read Only
 Route::middleware(['auth:sanctum', 'project.member'])
     ->prefix('projects/{project}/tasks/{task}/comments')
     ->group(function () {
         Route::get('/', [CommentController::class, 'index']);
+    });
+
+// Modul Collaboration Engine - Mutasi
+Route::middleware(['auth:sanctum', 'project.member', 'project.active'])
+    ->prefix('projects/{project}/tasks/{task}/comments')
+    ->group(function () {
         Route::post('/', [CommentController::class, 'store']);
         Route::delete('/{comment}', [CommentController::class, 'destroy']);
     });

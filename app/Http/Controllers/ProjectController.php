@@ -483,6 +483,54 @@ class ProjectController extends Controller
         ], Response::HTTP_OK);
     }
 
+
+    public function closeProject(Project $project)
+    {
+        // Pastikan user adalah owner
+        // Middleware project.role:owner sudah mengecek, tapi cek lagi aja
+        if ((int) $project->owner_id !== (int) auth()->id()) {
+            return response()->json([
+                'message' => 'Akses ditolak. Hanya owner proyek yang bisa menutup proyek.',
+            ], Response::HTTP_FORBIDDEN);
+        }
+
+        // Jika project sudah closed, return info tanpa error
+        if ($project->status === 'Closed') {
+            return response()->json([
+                'message' => 'Proyek ini sudah dalam status Closed.',
+                'data'    => $project->load('owner', 'members', 'externalLinks'),
+            ], Response::HTTP_OK);
+        }
+
+        // Cek apakah masih ada task yang belum done
+        $incompleteTasks = $project->sprints()
+            ->get()
+            ->flatMap(fn($sprint) => $sprint->tasks)
+            ->filter(fn($task) => strtolower($task->status) !== 'done')
+            ->count();
+
+        if ($incompleteTasks > 0) {
+            return response()->json([
+                'message' => "Tidak bisa menutup proyek. Masih ada {$incompleteTasks} task yang belum selesai (status bukan 'done').",
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        // Update status proyek
+        DB::transaction(function () use ($project) {
+            $project->status = 'Closed';
+            $project->save();
+
+            // Invalidate cache membership yang disimpan di middleware CheckProjectRole
+            cache()->forget("project.role.membership.{$project->project_id}." . auth()->id());
+        });
+
+        // Return response
+        return response()->json([
+            'message' => 'Proyek berhasil ditutup.',
+            'data'    => $project->load('owner', 'members', 'externalLinks'),
+        ], Response::HTTP_OK);
+    }
+
     private function generateUniqueProjectCode(): string
     {
         do {
