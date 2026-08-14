@@ -33,8 +33,20 @@ class CheckProjectRole
         });
 
         if (!$membership || !in_array($membership->role, $roles)) {
+            $allowed = implode(
+                ' atau ',
+                array_map(
+                    fn (string $role): string => match ($role) {
+                        'owner'       => 'owner',
+                        'team_leader' => 'team leader',
+                        default       => $role,
+                    },
+                    $roles,
+                ),
+            );
+
             return response()->json([
-                'message' => 'Akses ditolak. Hanya owner atau team leader yang diizinkan.',
+                'message' => "Akses ditolak. Hanya {$allowed} yang diizinkan.",
             ], 403);
         }
 

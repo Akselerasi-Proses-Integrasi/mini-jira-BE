@@ -483,7 +483,7 @@ class ProjectController extends Controller
         ], Response::HTTP_OK);
     }
 
-
+    // Menutup proyek yang berstatus Active menjadi Closed
     public function closeProject(Project $project)
     {
         // Pastikan user adalah owner
@@ -527,6 +527,40 @@ class ProjectController extends Controller
         // Return response
         return response()->json([
             'message' => 'Proyek berhasil ditutup.',
+            'data'    => $project->load('owner', 'members', 'externalLinks'),
+        ], Response::HTTP_OK);
+    }
+
+    // Membuka kembali proyek yang berstatus Closed menjadi Active, hanya untuk Owner
+    public function reopenProject(Project $project)
+    {
+        // Pastikan user adalah owner, Middleware project.role:owner sudah mengecek, tapi cek lagi aja
+        if ((int) $project->owner_id !== (int) auth()->id()) {
+            return response()->json([
+                'message' => 'Akses ditolak. Hanya owner proyek yang bisa membuka kembali proyek.',
+            ], Response::HTTP_FORBIDDEN);
+        }
+
+        // Jika sudah Active, kembalikan info tanpa error
+        if ($project->status === 'Active') {
+            return response()->json([
+                'message' => 'Proyek ini sudah dalam status Active.',
+                'data'    => $project->load('owner', 'members', 'externalLinks'),
+            ], Response::HTTP_OK);
+        }
+
+        // Update status dalam transaksi database
+        DB::transaction(function () use ($project) {
+            $project->status = 'Active';
+            $project->save();
+
+            // Invalidate cache membership yang disimpan di middleware CheckProjectRole
+            cache()->forget("project.role.membership.{$project->project_id}." . auth()->id());
+        });
+
+        // Return response
+        return response()->json([
+            'message' => 'Proyek berhasil dibuka kembali.',
             'data'    => $project->load('owner', 'members', 'externalLinks'),
         ], Response::HTTP_OK);
     }

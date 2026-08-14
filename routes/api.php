@@ -56,6 +56,11 @@ Route::middleware(['auth:sanctum', 'project.role:owner'])
     ->patch('projects/{project}/close', [ProjectController::class, 'closeProject'])
     ->name('projects.close');
 
+// Owner-only: Reopen Project
+Route::middleware(['auth:sanctum', 'project.role:owner'])
+    ->patch('projects/{project}/reopen', [ProjectController::class, 'reopenProject'])
+    ->name('projects.reopen');
+
 // Owner / Team Leader: Mutasi External Link
 Route::middleware(['auth:sanctum', 'project.role:owner,team_leader', 'project.active'])
     ->prefix('projects/{project}/external-links')
