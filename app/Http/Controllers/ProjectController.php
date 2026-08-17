@@ -15,6 +15,7 @@ use App\Models\ProjectInvitation;
 use App\Models\Project;
 use App\Models\ProjectMember;
 use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\URL;
@@ -484,7 +485,7 @@ class ProjectController extends Controller
     }
 
     // Menutup proyek yang berstatus Active menjadi Closed
-    public function closeProject(Project $project)
+    public function closeProject(Request $request, Project $project)
     {
         // Pastikan user adalah owner
         // Middleware project.role:owner sudah mengecek, tapi cek lagi aja
@@ -503,17 +504,24 @@ class ProjectController extends Controller
         }
 
         // Cek apakah masih ada task yang belum done
-        $incompleteTasks = $project->sprints()
-            ->get()
-            ->flatMap(fn($sprint) => $sprint->tasks)
-            ->filter(fn($task) => strtolower($task->status) !== 'done')
-            ->count();
+        $force = $request->boolean('force', false);
+        $validator = app(\App\Services\ProjectClosureValidator::class);
+        $incompleteTasks = $validator->getIncompleteTasks($project);
 
-        if ($incompleteTasks > 0) {
+        if ($incompleteTasks->isNotEmpty() && !$force) {
             return response()->json([
-                'message' => "Tidak bisa menutup proyek. Masih ada {$incompleteTasks} task yang belum selesai (status bukan 'done').",
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
+                'warning' => true,
+                'message' => "Masih ada {$incompleteTasks->count()} task yang belum selesai. Kirim 'force: true' untuk tetap menutup proyek.",
+                'data'    => [
+                    'incomplete_tasks_count' => $incompleteTasks->count(),
+                    'incomplete_tasks'       => $incompleteTasks->map(fn($t) => [
+                        'task_id' => $t->task_id,
+                        'judul'   => $t->judul,
+                        'status'  => $t->status,
+            ]),
+        ],
+    ], Response::HTTP_OK);
+}
 
         // Update status proyek
         DB::transaction(function () use ($project) {
