@@ -11,15 +11,6 @@ use Illuminate\Http\Response;
 
 class TaskController extends Controller
 {
-    private function ensureProjectIsActive(Project $project)
-    {
-        if (strtolower($project->status) === 'closed') {
-            abort(response()->json([
-                'message' => 'Proyek sudah ditutup (Read-Only). Tidak dapat melakukan modifikasi task.'
-            ], Response::HTTP_FORBIDDEN));
-        }
-    }
-
     private function getCurrentUserRole(Project $project)
     {
         $membership = ProjectMember::where('project_id', $project->project_id)
@@ -55,8 +46,6 @@ class TaskController extends Controller
 
     public function store(Request $request, Project $project, Sprint $sprint)
     {
-        $this->ensureProjectIsActive($project);
-
         if ($sprint->project_id !== $project->project_id) {
             return response()->json(['message' => 'Sprint tidak valid untuk proyek ini.'], Response::HTTP_BAD_REQUEST);
         }
@@ -91,8 +80,6 @@ class TaskController extends Controller
 
     public function update(Request $request, Project $project, Sprint $sprint, Task $task)
     {
-        $this->ensureProjectIsActive($project);
-        
         if ($task->sprint_id !== $sprint->sprint_id) {
             return response()->json(['message' => 'Task tidak valid.'], Response::HTTP_BAD_REQUEST);
         }
@@ -113,7 +100,6 @@ class TaskController extends Controller
 
     public function updateStatus(Request $request, Project $project, Sprint $sprint, Task $task)
     {
-        $this->ensureProjectIsActive($project);
         if ($task->sprint_id !== $sprint->sprint_id) return response()->json(['message' => 'Task tidak valid.'], Response::HTTP_BAD_REQUEST);
 
         $validated = $request->validate([
@@ -184,7 +170,6 @@ class TaskController extends Controller
 
     public function reopen(Request $request, Project $project, Sprint $sprint, Task $task)
     {
-        $this->ensureProjectIsActive($project);
         if ($task->sprint_id !== $sprint->sprint_id) {
             return response()->json(['message' => 'Task tidak valid.'], Response::HTTP_BAD_REQUEST);
         }
@@ -214,7 +199,6 @@ class TaskController extends Controller
 
     public function destroy(Project $project, Sprint $sprint, Task $task)
     {
-        $this->ensureProjectIsActive($project);
         if ($task->sprint_id !== $sprint->sprint_id) return response()->json(['message' => 'Task tidak valid.'], Response::HTTP_BAD_REQUEST);
 
         $userRole = $this->getCurrentUserRole($project);
